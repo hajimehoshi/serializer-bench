@@ -28,30 +28,28 @@ type Foo struct {
 }
 
 func (f *Foo) EncodeMsgpack(enc *msgpack.Encoder) error {
-	if err := enc.EncodeInt(int64(f.Int)); err != nil {
-		return err
-	}
-	if err := enc.EncodeString(f.String); err != nil {
-		return err
-	}
-	if err := enc.Encode(f.Bars); err != nil {
-		return err
-	}
+	enc.EncodeMapLen(3)
+	enc.EncodeString("Int")
+	enc.EncodeInt(int64(f.Int))
+	enc.EncodeString("String")
+	enc.EncodeString(f.String)
+	enc.EncodeString("Bars")
+	enc.Encode(f.Bars)
 	return nil
 }
 
 func (f *Foo) DecodeMsgpack(dec *msgpack.Decoder) error {
-	var err error
-	f.Int, err = dec.DecodeInt()
-	if err != nil {
-		return err
-	}
-	f.String, err = dec.DecodeString()
-	if err != nil {
-		return err
-	}
-	if err := dec.Decode(&f.Bars); err != nil {
-		return err
+	l, _ := dec.DecodeMapLen()
+	for i := 0; i < l; i++ {
+		key, _ := dec.DecodeString()
+		switch key {
+		case "Int":
+			f.Int, _ = dec.DecodeInt()
+		case "String":
+			f.String, _ = dec.DecodeString()
+		case "Bars":
+			dec.Decode(&f.Bars)
+		}
 	}
 	return nil
 }
@@ -63,76 +61,56 @@ type Bar struct {
 }
 
 func (b *Bar) EncodeMsgpack(enc *msgpack.Encoder) error {
-	if err := enc.EncodeArrayLen(len(b.Floats)); err != nil {
-		return err
-	}
+	enc.EncodeMapLen(3)
+
+	enc.EncodeString("Floats")
+	enc.EncodeArrayLen(len(b.Floats))
 	for _, v := range b.Floats {
-		if err := enc.EncodeFloat64(v); err != nil {
-			return err
-		}
+		enc.EncodeFloat64(v)
 	}
-	if err := enc.EncodeArrayLen(len(b.Strings)); err != nil {
-		return err
-	}
+
+	enc.EncodeString("Strings")
+	enc.EncodeArrayLen(len(b.Strings))
 	for _, v := range b.Strings {
-		if err := enc.EncodeString(v); err != nil {
-			return err
-		}
+		enc.EncodeString(v)
 	}
-	if err := enc.EncodeMapLen(len(b.Map)); err != nil {
-		return err
-	}
+
+	enc.EncodeString("Map")
+	enc.EncodeMapLen(len(b.Map))
 	for k, v := range b.Map {
-		if err := enc.EncodeString(k); err != nil {
-			return err
-		}
-		if err := enc.EncodeInt(int64(v)); err != nil {
-			return err
-		}
+		enc.EncodeString(k)
+		enc.EncodeInt(int64(v))
 	}
+
 	return nil
 }
 
 func (b *Bar) DecodeMsgpack(dec *msgpack.Decoder) error {
-	var err error
-	l := 0
-
-	l, err = dec.DecodeArrayLen()
-	if err != nil {
-		return err
-	}
-	b.Floats = make([]float64, l)
+	l, _ := dec.DecodeMapLen()
 	for i := 0; i < l; i++ {
-		b.Floats[i], err = dec.DecodeFloat64()
-		if err != nil {
-			return err
+		key, _ := dec.DecodeString()
+		switch key {
+		case "Floats":
+			ll, _ := dec.DecodeArrayLen()
+			b.Floats = make([]float64, ll)
+			for i := 0; i < ll; i++ {
+				b.Floats[i], _ = dec.DecodeFloat64()
+			}
+		case "Strings":
+			ll, _ := dec.DecodeArrayLen()
+			b.Strings = make([]string, ll)
+			for i := 0; i < ll; i++ {
+				b.Strings[i], _ = dec.DecodeString()
+			}
+		case "Map":
+			ll, _ := dec.DecodeMapLen()
+			b.Map = map[string]int{}
+			for i := 0; i < ll; i++ {
+				k, _ := dec.DecodeString()
+				v, _ := dec.DecodeInt()
+				b.Map[k] = v
+			}
 		}
-	}
-
-	l, err = dec.DecodeArrayLen()
-	if err != nil {
-		return err
-	}
-	b.Strings = make([]string, l)
-	for i := 0; i < l; i++ {
-		b.Strings[i], err = dec.DecodeString()
-		if err != nil {
-			return err
-		}
-	}
-
-	l, err = dec.DecodeMapLen()
-	b.Map = map[string]int{}
-	for i := 0; i < l; i++ {
-		k, err := dec.DecodeString()
-		if err != nil {
-			return err
-		}
-		v, err := dec.DecodeInt()
-		if err != nil {
-			return err
-		}
-		b.Map[k] = v
 	}
 	return nil
 }
